@@ -8,17 +8,22 @@ import * as ast from "./ast.js"
 
 const aelGrammar = ohm.grammar(String.raw`Ael {
   Program   = Statement+
-  Statement = let id "=" Exp                  --variable
-            | id "=" Exp                      --assign
-            | print Exp                       --print
+  Statement = let id "=" EExp                  --variable
+            | id "=" EExp                      --assign
+            | print EExp                       --print
+  EExp      = EExp "==" Exp                  --binary
+            | Exp
   Exp       = Exp ("+" | "-") Term            --binary
             | Term
-  Term      = Term ("*"| "/") Factor          --binary
-            | Factor
-  Factor    = id
-            | num
-            | "(" Exp ")"                     --parens
+  Term      = Term ("*"| "%" | "/") SupFactor          --binary
+            | SupFactor
+  SupFactor = Factor
             | ("-" | abs | sqrt) Factor       --unary
+  Factor    = SubFactor "**" Factor           --binary
+            | SubFactor
+  SubFactor = id
+            | num
+            | "(" EExp ")"                     --parens
   num       = digit+ ("." digit+)?
   let       = "let" ~alnum
   print     = "print" ~alnum
@@ -45,16 +50,22 @@ const astBuilder = aelGrammar.createSemantics().addOperation("ast", {
   Statement_print(_print, expression) {
     return new ast.PrintStatement(expression.ast())
   },
+  EExp_binary(left, op, right) {
+    return new ast.BinaryExpression(op.sourceString, left.ast(), right.ast())
+  },
   Exp_binary(left, op, right) {
     return new ast.BinaryExpression(op.sourceString, left.ast(), right.ast())
   },
   Term_binary(left, op, right) {
     return new ast.BinaryExpression(op.sourceString, left.ast(), right.ast())
   },
-  Factor_unary(op, operand) {
+  SupFactor_unary(op, operand) {
     return new ast.UnaryExpression(op.sourceString, operand.ast())
   },
-  Factor_parens(_open, expression, _close) {
+  Factor_binary(left, op, right) {
+    return new ast.BinaryExpression(op.sourceString, left.ast(), right.ast())
+  },
+  SubFactor_parens(_open, expression, _close) {
     return expression.ast()
   },
   num(_whole, _point, _fraction) {
